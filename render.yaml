@@ -1,6 +1,16 @@
-services: 
-- type: web
-  name: enterprise-ai-platform
-  env: node
-  buildCommand: npn install
-  startCommand: npn start
+services:
+  - type: web
+    name: enterprise-ai-platform
+    runtime: docker
+    dockerfilePath: ./Dockerfile.simple
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /api/health
+    autoDeploy: true
