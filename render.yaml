@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: enterprise-ai-platform
+    name: Enterprise-AI-Platform
     runtime: docker
     dockerfilePath: ./Dockerfile.simple
     envVars:
