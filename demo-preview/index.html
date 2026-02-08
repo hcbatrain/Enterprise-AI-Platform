@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise AI Platform - Demo Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glow { box-shadow: 0 0 40px rgba(59, 130, 246, 0.3); }
+        .typing::after { content: '|'; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="glass sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-lg flex items-center justify-center">
+                        <i data-lucide="brain" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <span class="text-xl font-bold">Enterprise AI</span>
+                        <span class="text-xs text-blue-300 block">Insurance Software Delivery</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        Demo Mode
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="py-20 px-4">
+        <div class="max-w-6xl mx-auto text-center">
+            <h1 class="text-5xl md:text-6xl font-bold mb-6">
+                <span class="bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+                    Enterprise AI Platform
+                </span>
+            </h1>
+            <p class="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
+                Offline, compliant, role-aware AI for insurance software delivery organizations.
+                Powered by local LLMs with deep Workers' Compensation domain expertise.
+            </p>
+            <div class="flex flex-wrap justify-center gap-4">
+                <button onclick="showDemo('chat')" class="px-8 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all flex items-center gap-2">
+                    <i data-lucide="message-square" class="w-5 h-5"></i>
+                    Try AI Chat Demo
+                </button>
+                <button onclick="showDemo('features')" class="px-8 py-3 glass rounded-lg font-semibold hover:bg-white/10 transition-all flex items-center gap-2">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                    Explore Features
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="py-12 px-4">
+        <div class="max-w-6xl mx-auto">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div class="glass rounded-xl p-6 text-center">
+                    <div class="text-3xl font-bold text-blue-400">100%</div>
+                    <div class="text-sm text-gray-400">Offline Operation</div>
+                </div>
+                <div class="glass rounded-xl p-6 text-center">
+                    <div class="text-3xl font-bold text-cyan-400">5</div>
+                    <div class="text-sm text-gray-400">User Roles</div>
+                </div>
+                <div class="glass rounded-xl p-6 text-center">
+                    <div class="text-3xl font-bold text-teal-400">4</div>
+                    <div class="text-sm text-gray-400">Compliance Standards</div>
+                </div>
+                <div class="glass rounded-xl p-6 text-center">
+                    <div class="text-3xl font-bold text-purple-400">RAG</div>
+                    <div class="text-sm text-gray-400">Knowledge System</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Demo Chat Interface -->
+    <section id="chat-demo" class="py-12 px-4">
+        <div class="max-w-4xl mx-auto">
+            <div class="glass rounded-2xl overflow-hidden glow">
+                <div class="bg-gradient-to-r from-blue-900/50 to-cyan-900/50 p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center">
+                            <i data-lucide="bot" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <span class="font-semibold">Enterprise AI Assistant</span>
+                            <span class="text-xs text-gray-400 block">Role: Business Analyst</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="setRole('ba')" class="role-btn px-3 py-1 text-xs rounded-full bg-blue-500/30 border border-blue-500/50 active">BA</button>
+                        <button onclick="setRole('dev')" class="role-btn px-3 py-1 text-xs rounded-full glass hover:bg-white/10">Dev</button>
+                        <button onclick="setRole('qa')" class="role-btn px-3 py-1 text-xs rounded-full glass hover:bg-white/10">QA</button>
+                    </div>
+                </div>
+                
+                <div id="chat-messages" class="h-96 overflow-y-auto p-4 space-y-4">
+                    <!-- Welcome Message -->
+                    <div class="flex gap-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="bot" class="w-4 h-4"></i>
+                        </div>
+                        <div class="glass rounded-lg rounded-tl-none p-3 max-w-[80%]">
+                            <p class="text-sm">Hello! I'm your Enterprise AI assistant with deep knowledge of Workers' Compensation insurance and Sapiens CourseSuite. How can I help you today?</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-4 border-t border-white/10">
+                    <div class="flex gap-2">
+                        <input type="text" id="chat-input" placeholder="Ask about WC policies, Sapiens CourseSuite, or software delivery..." 
+                            class="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+                            onkeypress="if(event.key==='Enter')sendMessage()">
+                        <button onclick="sendMessage()" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:shadow-lg transition-all">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="quickAsk('What are the key WC policy attributes?')" class="text-xs px-3 py-1 glass rounded-full hover:bg-white/10 transition">WC Policy Attributes</button>
+                        <button onclick="quickAsk('Explain Sapiens CourseSuite architecture')" class="text-xs px-3 py-1 glass rounded-full hover:bg-white/10 transition">CourseSuite Architecture</button>
+                        <button onclick="quickAsk('How do I configure rating algorithms?')" class="text-xs px-3 py-1 glass rounded-full hover:bg-white/10 transition">Rating Algorithms</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section id="features" class="py-12 px-4">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">Platform Features</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="glass rounded-xl p-6 hover:bg-white/10 transition-all cursor-pointer group">
+                    <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="shield-check" class="w-6 h-6 text-blue-400"></i>
+                    </div>
+                    <h3 class="font-semibold mb-2">Offline LLM Layer</h3>
+                    <p class="text-sm text-gray-400">100% air-gapped operation with Ollama/vLLM. No external API dependencies. Complete data sovereignty.</p>
+                </div>
+                
+                <div class="glass rounded-xl p-6 hover:bg-white/10 transition-all cursor-pointer group">
+                    <div class="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="users" class="w-6 h-6 text-cyan-400"></i>
+                    </div>
+                    <h3 class="font-semibold mb-2">Role-Aware Intelligence</h3>
+                    <p class="text-sm text-gray-400">Contextual responses based on user role: Business Analyst, Developer, QA Engineer, Product Manager, Executive.</p>
+                </div>
+                
+                <div class="glass rounded-xl p-6 hover:bg-white/10 transition-all cursor-pointer group">
+                    <div class="w-12 h-12 bg-teal-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="database" class="w-6 h-6 text-teal-400"></i>
+                    </div>
+                    <h3 class="font-semibold mb-2">RAG Knowledge System</h3>
+                    <p class="text-sm text-gray-400">Hybrid vector + keyword search with pgvector. Document ingestion for PDF, DOCX, XLSX, TXT formats.</p>
+                </div>
+                
+                <div class="glass rounded-xl p-6 hover:bg-white/10 transition-all cursor-pointer group">
+                    <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="network" class="w-6 h-6 text-purple-400"></i>
+                    </div>
+                    <h3 class="font-semibold mb-2">Knowledge Graph</h3>
+                    <p class="text-sm text-gray-400">Neo4j-powered entity relationships. WC domain ontology with policies, claims, entities, and regulations.</p>
+                </div>
+                
+                <div class="glass rounded-xl p-6 hover:bg-white/10 transition-all cursor-pointer group">
+                    <div class="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="file-check" class="w-6 h-6 text-green-400"></i>
+                    </div>
+                    <h3 class="font-semibold mb-2">Compliance Ready</h3>
+                    <p class="text-sm text-gray-400">SOC 2, ISO 27001, GDPR, CMMI compliant. Full audit trails, data retention policies, encryption at rest.</p>
+                </div>
+                
+                <div class="glass rounded-xl p-6 hover:bg-white/10 transition-all cursor-pointer group">
+                    <div class="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="briefcase" class="w-6 h-6 text-orange-400"></i>
+                    </div>
+                    <h3 class="font-semibold mb-2">WC Domain Expertise</h3>
+                    <p class="text-sm text-gray-400">Deep knowledge of Workers' Compensation insurance, Sapiens CourseSuite, policy administration, and claims.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Overview -->
+    <section class="py-12 px-4">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">System Architecture</h2>
+            <div class="glass rounded-2xl p-8">
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="layout" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="font-semibold mb-2">Presentation Layer</h3>
+                        <ul class="text-sm text-gray-400 space-y-1">
+                            <li>React + TypeScript</li>
+                            <li>TanStack Query</li>
+                            <li>Tailwind CSS</li>
+                            <li>Role-based UI</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="server" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="font-semibold mb-2">API Layer</h3>
+                        <ul class="text-sm text-gray-400 space-y-1">
+                            <li>FastAPI (Python)</li>
+                            <li>JWT Authentication</li>
+                            <li>RBAC Authorization</li>
+                            <li>Async/Await</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="hard-drive" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="font-semibold mb-2">Data Layer</h3>
+                        <ul class="text-sm text-gray-400 space-y-1">
+                            <li>PostgreSQL + pgvector</li>
+                            <li>Neo4j Knowledge Graph</li>
+                            <li>Redis Cache</li>
+                            <li>Document Store</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mt-8 pt-8 border-t border-white/10">
+                    <div class="flex flex-wrap justify-center gap-4">
+                        <div class="flex items-center gap-2 px-4 py-2 glass rounded-full">
+                            <i data-lucide="cpu" class="w-4 h-4 text-blue-400"></i>
+                            <span class="text-sm">Ollama LLM</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-4 py-2 glass rounded-full">
+                            <i data-lucide="search" class="w-4 h-4 text-cyan-400"></i>
+                            <span class="text-sm">Hybrid RAG</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-4 py-2 glass rounded-full">
+                            <i data-lucide="git-branch" class="w-4 h-4 text-teal-400"></i>
+                            <span class="text-sm">Knowledge Graph</span>
+                        </div>
+                        <div class="flex items-center gap-2 px-4 py-2 glass rounded-full">
+                            <i data-lucide="file-text" class="w-4 h-4 text-purple-400"></i>
+                            <span class="text-sm">Document Processing</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deployment Options -->
+    <section class="py-12 px-4">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">Get Started</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="glass rounded-xl p-6">
+                    <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
+                        <i data-lucide="laptop" class="w-5 h-5 text-blue-400"></i>
+                        Local Deployment
+                    </h3>
+                    <p class="text-sm text-gray-400 mb-4">Run the complete platform on your local machine with Docker Compose.</p>
+                    <code class="block bg-black/30 rounded-lg p-3 text-xs font-mono mb-4">
+                        ./quick-start.sh
+                    </code>
+                    <ul class="text-sm text-gray-400 space-y-1">
+                        <li>• Requires Docker & Docker Compose</li>
+                        <li>• 8GB+ RAM recommended</li>
+                        <li>• Full offline operation</li>
+                    </ul>
+                </div>
+                
+                <div class="glass rounded-xl p-6">
+                    <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
+                        <i data-lucide="cloud" class="w-5 h-5 text-cyan-400"></i>
+                        Cloud Deployment
+                    </h3>
+                    <p class="text-sm text-gray-400 mb-4">Deploy to Render, Railway, or AWS for team access.</p>
+                    <code class="block bg-black/30 rounded-lg p-3 text-xs font-mono mb-4">
+                        git push && render deploy
+                    </code>
+                    <ul class="text-sm text-gray-400 space-y-1">
+                        <li>• Render.com blueprint included</li>
+                        <li>• Neo4j Aura integration</li>
+                        <li>• Auto-scaling ready</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-8 px-4 border-t border-white/10">
+        <div class="max-w-6xl mx-auto text-center">
+            <p class="text-gray-400 text-sm">
+                Enterprise AI Platform for Insurance Software Delivery Organizations
+            </p>
+            <p class="text-gray-500 text-xs mt-2">
+                Offline • Compliant • Role-Aware • Domain-Expert
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        let currentRole = 'ba';
+        const roleNames = {
+            'ba': 'Business Analyst',
+            'dev': 'Developer',
+            'qa': 'QA Engineer'
+        };
+
+        const responses = {
+            'ba': {
+                'What are the key WC policy attributes?': `Key Workers' Compensation policy attributes include:
+
+• Policy Number - Unique identifier
+• Employer Information - Name, address, FEIN
+• Policy Period - Effective and expiration dates
+• Classification Codes - WC class codes for each job type
+• Payroll Estimates - Projected payroll by class code
+• Experience Modification Factor (Ex-Mod) - Based on claims history
+• Premium Calculation - Rate per $100 of payroll
+• State Jurisdiction - Each state has different regulations
+• Coverage Limits - Statutory limits vary by state
+
+Would you like me to explain how these attributes flow through Sapiens CourseSuite?`,
+                'Explain Sapiens CourseSuite architecture': `Sapiens CourseSuite Architecture:
+
+**Core Components:**
+• Policy Administration - Manages policy lifecycle
+• Rating Engine - Calculates premiums using state-specific algorithms
+• Billing & Collections - Premium financing and payment processing
+• Claims Management - First notice of loss through settlement
+• Document Management - Policy documents, forms, correspondence
+
+**Integration Layer:**
+• APIs for third-party systems
+• EDI for state reporting
+• ACORD standards support
+
+**Database Layer:**
+• Oracle or SQL Server backend
+• Configurable data model
+
+The AI platform integrates with CourseSuite via its API layer to provide intelligent assistance.`,
+                'How do I configure rating algorithms?': `Configuring Rating Algorithms in CourseSuite:
+
+**Step 1: Access Rating Configuration**
+• Navigate to Administration > Rating > Algorithms
+• Select the state and line of business
+
+**Step 2: Define Rate Components**
+• Base rates by class code
+• Experience modification factors
+• Schedule rating factors
+• Premium discount rules
+
+**Step 3: Set Up Rules**
+• Minimum premium thresholds
+• Premium capping rules
+• Special rating programs
+
+**Step 4: Testing**
+• Use the rating simulator
+• Validate against NCCI or state bureau rates
+
+Would you like detailed steps for a specific state's rating algorithm?`
+            },
+            'dev': {
+                'What are the key WC policy attributes?': `WC Policy Data Model (Technical View):
+
+**Core Tables:**
+• POLICY_MASTER - Policy header info
+• POLICY_VERSION - Version control for endorsements
+• POLICY_LOCATION - Insured locations
+• POLICY_CLASS_CODE - WC classification details
+• POLICY_COVERAGE - Coverage limits and terms
+
+**Key Fields:**
+• pol_number (VARCHAR(20), PK)
+• eff_date / exp_date (DATE)
+• status_cd (VARCHAR(2)) - Active, Cancelled, Expired
+• premium_amt (DECIMAL(15,2))
+• ex_mod_factor (DECIMAL(5,3))
+
+**API Endpoints:**
+• GET /api/v1/policies/{polNumber}
+• POST /api/v1/policies/{polNumber}/endorse
+
+Need the full entity-relationship diagram?`,
+                'Explain Sapiens CourseSuite architecture': `CourseSuite Technical Architecture:
+
+**Application Tier:**
+• Java/Spring Boot microservices
+• RESTful APIs with OAuth 2.0
+• Message queues (RabbitMQ/ActiveMQ)
+
+**Integration Points:**
+```
+CourseSuite Core
+    ├── Rating Engine (Java)
+    ├── Document Gen (XML/XSLT)
+    ├── Workflow Engine (BPMN)
+    └── Reporting (JasperReports)
+```
+
+**Database Schema:**
+• 800+ tables
+• Configurable extensions
+• Audit logging
+
+**API Integration:**
+• OpenAPI 3.0 spec
+• Rate limiting: 1000 req/min
+• Webhook support for events
+
+Our AI platform uses these APIs to fetch policy data for context.`,
+                'How do I configure rating algorithms?': `Rating Algorithm Configuration (Developer Guide):
+
+**File Locations:**
+• /config/rating/{state}/{lob}/algorithm.xml
+• /config/rating/{state}/{lob}/factors.json
+
+**Algorithm Structure:**
+```xml
+<ratingAlgorithm name="WCBaseRate">
+  <step order="1" type="lookup">
+    <table>WC_CLASS_CODE_RATES</table>
+    <input>classCode</input>
+    <output>baseRate</output>
+  </step>
+  <step order="2" type="calculate">
+    <formula>(payroll / 100) * baseRate * exMod</formula>
+  </step>
+</ratingAlgorithm>
+```
+
+**Deployment:**
+1. Update XML configuration
+2. Run rating engine refresh: POST /admin/rating/refresh
+3. Clear cache: DELETE /cache/rating
+
+Need help with a specific rating step implementation?`
+            },
+            'qa': {
+                'What are the key WC policy attributes?': `WC Policy - QA Testing Checklist:
+
+**Data Validation Tests:**
+□ Policy number format validation (regex: ^[A-Z0-9]{10,20}$)
+□ Date range validation (eff_date < exp_date)
+□ State jurisdiction validation (50 states + DC)
+□ Premium calculation accuracy (± $0.01 tolerance)
+
+**Boundary Tests:**
+□ Minimum premium thresholds
+□ Maximum payroll limits
+□ Ex-Mod range (0.5 to 2.0+)
+□ Class code validity
+
+**Integration Tests:**
+□ Policy → Rating Engine data flow
+□ Policy → Billing premium synchronization
+□ Policy → Claims coverage verification
+□ State reporting EDI generation
+
+**Regression Suite:**
+• 150+ test cases in TestRail
+• Automated with Selenium + API tests
+
+Need the full test case spreadsheet?`,
+                'Explain Sapiens CourseSuite architecture': `CourseSuite - QA Testing Architecture:
+
+**Test Environments:**
+• DEV - Developer sandbox
+• SIT - System Integration Testing
+• UAT - User Acceptance Testing
+• PROD - Production (read-only tests)
+
+**Testing Layers:**
+```
+UI Tests (Selenium/Cypress)
+    ↓
+API Tests (Postman/Newman)
+    ↓
+Integration Tests (JUnit)
+    ↓
+Unit Tests (JUnit/Mockito)
+```
+
+**Key Test Scenarios:**
+• End-to-end policy lifecycle
+• Rating accuracy validation
+• Document generation verification
+• State reporting compliance
+
+**Defect Tracking:**
+• JIRA integration
+• Severity: Critical/High/Medium/Low
+• SLA: Critical = 24hr fix
+
+Our AI platform has its own test suite with 200+ cases.`,
+                'How do I configure rating algorithms?': `Rating Algorithm QA Process:
+
+**Pre-Deployment Testing:**
+□ Algorithm validation against state bureau rates
+□ Boundary condition testing
+□ Negative testing (invalid inputs)
+□ Performance testing (< 500ms per rating)
+
+**Test Data Setup:**
+```sql
+-- Create test policy
+INSERT INTO test_policies VALUES 
+  ('TEST001', 'CA', '2024-01-01', '2024-12-31', 100000);
+
+-- Add class codes
+INSERT INTO test_class_codes VALUES
+  ('8810', 'Clerical', 0.25);
+```
+
+**Automated Validation:**
+• Compare CourseSuite output vs expected
+• Tolerance: $0.01 for premium
+• Generate diff report
+
+**Regression Testing:**
+• Run full rating test suite
+• 500+ scenarios per state
+• Parallel execution (30 min total)
+
+Need help setting up test data for a specific scenario?`
+            }
+        };
+
+        function setRole(role) {
+            currentRole = role;
+            document.querySelectorAll('.role-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-500/30', 'border-blue-500/50');
+                btn.classList.add('glass');
+            });
+            event.target.classList.remove('glass');
+            event.target.classList.add('bg-blue-500/30', 'border-blue-500/50');
+            
+            // Update role indicator
+            document.querySelector('.text-xs.text-gray-400.block').textContent = `Role: ${roleNames[role]}`;
+        }
+
+        function quickAsk(question) {
+            document.getElementById('chat-input').value = question;
+            sendMessage();
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Simulate AI typing
+            setTimeout(() => {
+                showTyping();
+                setTimeout(() => {
+                    removeTyping();
+                    const response = getResponse(message);
+                    addMessage(response, 'ai');
+                }, 1500);
+            }, 300);
+        }
+
+        function addMessage(text, sender) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'flex gap-3 fade-in';
+            
+            if (sender === 'user') {
+                div.innerHTML = `
+                    <div class="flex-1"></div>
+                    <div class="glass rounded-lg rounded-tr-none p-3 max-w-[80%] bg-blue-500/20">
+                        <p class="text-sm">${escapeHtml(text)}</p>
+                    </div>
+                    <div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                    </div>
+                `;
+            } else {
+                div.innerHTML = `
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="bot" class="w-4 h-4"></i>
+                    </div>
+                    <div class="glass rounded-lg rounded-tl-none p-3 max-w-[80%]">
+                        <p class="text-sm whitespace-pre-line">${text}</p>
+                    </div>
+                `;
+            }
+            
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        }
+
+        function showTyping() {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.id = 'typing-indicator';
+            div.className = 'flex gap-3';
+            div.innerHTML = `
+                <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="bot" class="w-4 h-4"></i>
+                </div>
+                <div class="glass rounded-lg rounded-tl-none p-3">
+                    <span class="typing text-sm">Thinking</span>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        }
+
+        function removeTyping() {
+            const typing = document.getElementById('typing-indicator');
+            if (typing) typing.remove();
+        }
+
+        function getResponse(message) {
+            const roleResponses = responses[currentRole];
+            for (const [key, value] of Object.entries(roleResponses)) {
+                if (message.toLowerCase().includes(key.toLowerCase().split(' ').slice(0, 3).join(' '))) {
+                    return value;
+                }
+            }
+            return `I understand you're asking about "${message}". As a ${roleNames[currentRole]}, I can help you with Workers' Compensation insurance domain knowledge and Sapiens CourseSuite.
+
+This is a demo preview. Deploy the full platform to access:
+• Document upload and RAG search
+• Knowledge graph exploration
+• Real LLM inference with Ollama
+• Full conversation history
+• Role-based access control
+
+Would you like deployment instructions?`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showDemo(type) {
+            if (type === 'chat') {
+                document.getElementById('chat-demo').scrollIntoView({ behavior: 'smooth' });
+                document.getElementById('chat-input').focus();
+            } else {
+                document.getElementById('features').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,793 @@
+# Simplified Demo Container
+# This runs a lightweight version for quick testing
+# Note: Uses SQLite (data persists), mock LLM responses
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend requirements
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional packages for simple demo
+RUN pip install sqlite3 aiosqlite
+
+# Copy backend code
+COPY backend/app ./app
+
+# Create simple demo main.py
+RUN cat > /app/main_demo.py << 'EOF'
+import asyncio
+import json
+import uuid
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+import aiosqlite
+import hashlib
+import jwt
+from contextlib import asynccontextmanager
+
+# Database setup
+DB_PATH = "/data/enterprise_ai.db"
+
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Users table
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE,
+                username TEXT UNIQUE,
+                password_hash TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                role TEXT DEFAULT 'developer',
+                team TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT
+            )
+        ''')
+        
+        # Conversations table
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                title TEXT,
+                user_role TEXT,
+                team_context TEXT,
+                message_count INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        ''')
+        
+        # Messages table
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT,
+                role TEXT,
+                content TEXT,
+                sources TEXT,
+                created_at TEXT
+            )
+        ''')
+        
+        # User memory table (persistent memory!)
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS user_memories (
+                id TEXT PRIMARY KEY,
+                user_id TEXT UNIQUE,
+                employee_facts TEXT,
+                team_info TEXT,
+                active_projects TEXT,
+                conversation_summaries TEXT,
+                domain_expertise TEXT,
+                frequent_topics TEXT,
+                total_conversations INTEGER DEFAULT 0,
+                total_messages INTEGER DEFAULT 0,
+                last_interaction TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        ''')
+        
+        await db.commit()
+        
+        # Create default admin user
+        password_hash = hashlib.sha256("Admin123!".encode()).hexdigest()
+        await db.execute('''
+            INSERT OR IGNORE INTO users (id, email, username, password_hash, first_name, last_name, role, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            str(uuid.uuid4()),
+            'admin@enterprise.ai',
+            'admin',
+            password_hash,
+            'Admin',
+            'User',
+            'admin',
+            1,
+            datetime.utcnow().isoformat()
+        ))
+        
+        await db.commit()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+app = FastAPI(title="Enterprise AI Platform - Demo", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+security = HTTPBearer()
+SECRET_KEY = "demo-secret-key-change-in-production"
+
+# Pydantic models
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class MessageCreate(BaseModel):
+    content: str
+    conversation_id: Optional[str] = None
+
+class MemoryUpdate(BaseModel):
+    category: str
+    key: str
+    value: str
+
+# Helper functions
+async def get_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        yield db
+
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
+        return payload
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def create_token(user_id: str, email: str, role: str):
+    return jwt.encode(
+        {"user_id": user_id, "email": email, "role": role, "exp": datetime.utcnow().timestamp() + 86400},
+        SECRET_KEY,
+        algorithm="HS256"
+    )
+
+# WC Domain Knowledge
+WC_KNOWLEDGE = {
+    "class_codes": {
+        "8810": "Clerical - $0.25 per $100 payroll",
+        "8820": "Attorneys - $0.15 per $100 payroll",
+        "8832": "Physicians - $0.35 per $100 payroll",
+        "9012": "Building Operations - $2.50 per $100 payroll",
+        "9015": "Building Operations - NOC - $2.75 per $100 payroll",
+    },
+    "states": {
+        "CA": {"min_premium": 500, "monopolistic": False},
+        "NY": {"min_premium": 1000, "monopolistic": False},
+        "TX": {"min_premium": 500, "monopolistic": False},
+        "ND": {"monopolistic": True},
+        "OH": {"monopolistic": True},
+        "WA": {"monopolistic": True},
+        "WY": {"monopolistic": True},
+    },
+    "scenarios": {
+        "policy_mapping": "Map legacy policy numbers to Sapiens format: StatePrefix + 'WC' + SequentialNumber",
+        "class_code_validation": "Validate against NCCI tables. Check for obsolete codes and provide mappings.",
+        "ex_mod_migration": "Use DECIMAL(5,3) format. Validate range 0.500 to 2.000+",
+        "premium_calculation": "(Payroll / 100) * BaseRate * ExMod * ScheduleMod",
+    }
+}
+
+# AI Response Generator
+def generate_ai_response(query: str, user_role: str, memory: dict) -> dict:
+    query_lower = query.lower()
+    
+    # Build context from memory
+    memory_context = ""
+    if memory:
+        if memory.get('employee_facts'):
+            facts = json.loads(memory['employee_facts'])
+            memory_context += f"User: {facts.get('full_name', 'Unknown')}. "
+        if memory.get('team_info'):
+            team = json.loads(memory['team_info'])
+            memory_context += f"Team: {team.get('team', 'Unknown')}. "
+        if memory.get('active_projects'):
+            projects = json.loads(memory['active_projects'])
+            if projects:
+                memory_context += f"Projects: {', '.join([p.get('name', '') for p in projects])}. "
+    
+    # Generate response based on query
+    if "class code" in query_lower:
+        response = f"Based on your context ({memory_context}), here's information about class codes:\n\n"
+        response += "Common WC Class Codes:\n"
+        for code, desc in WC_KNOWLEDGE["class_codes"].items():
+            response += f"• {code}: {desc}\n"
+        response += "\nFor data conversion, validate against NCCI tables and check for obsolete codes."
+        sources = [{"title": "NCCI Class Code Reference", "similarity": 0.95}]
+        
+    elif "policy" in query_lower and "map" in query_lower:
+        response = f"{memory_context}\n\n"
+        response += WC_KNOWLEDGE["scenarios"]["policy_mapping"] + "\n\n"
+        response += "Example mapping:\n"
+        response += "• Legacy: 'WC-CA-2023-001234'\n"
+        response += "• Sapiens: 'CAWC001234'\n\n"
+        response += "SQL for mapping:\n"
+        response += """UPDATE policies 
+SET policy_number = CONCAT(state_code, 'WC', RIGHT(legacy_number, 6))
+WHERE migration_batch = 'BATCH_001';"""
+        sources = [{"title": "Sapiens Policy Administration Guide", "similarity": 0.92}]
+        
+    elif "ex-mod" in query_lower or "experience mod" in query_lower:
+        response = f"{memory_context}\n\n"
+        response += "Experience Modification Factor Migration:\n\n"
+        response += WC_KNOWLEDGE["scenarios"]["ex_mod_migration"] + "\n\n"
+        response += "Conversion SQL:\n"
+        response += """ALTER TABLE policies 
+ADD COLUMN ex_mod_factor DECIMAL(5,3);
+
+UPDATE policies 
+SET ex_mod_factor = CAST(legacy_ex_mod AS DECIMAL(5,3))
+WHERE legacy_ex_mod IS NOT NULL;"""
+        sources = [{"title": "Experience Rating Guide", "similarity": 0.88}]
+        
+    elif "state" in query_lower:
+        response = f"{memory_context}\n\n"
+        response += "State Jurisdiction Information:\n\n"
+        response += "Standard States:\n"
+        for state, info in WC_KNOWLEDGE["states"].items():
+            if not info.get("monopolistic"):
+                response += f"• {state}: Min Premium ${info.get('min_premium', 'N/A')}\n"
+        response += "\nMonopolistic States (special handling): ND, OH, WA, WY\n"
+        sources = [{"title": "State Requirements Reference", "similarity": 0.90}]
+        
+    elif "premium" in query_lower:
+        response = f"{memory_context}\n\n"
+        response += "Premium Calculation Formula:\n\n"
+        response += WC_KNOWLEDGE["scenarios"]["premium_calculation"] + "\n\n"
+        response += "Example:\n"
+        response += "Payroll: $100,000\n"
+        response += "Class Code 8810 Rate: $0.25 per $100\n"
+        response += "Base Premium = (100,000 / 100) * 0.25 = $250\n"
+        response += "With Ex-Mod 1.10: $250 * 1.10 = $275"
+        sources = [{"title": "Premium Calculation Guide", "similarity": 0.93}]
+        
+    else:
+        response = f"{memory_context}\n\n"
+        response += f"As a {user_role.replace('_', ' ').title()}, I can help you with Workers' Compensation insurance and Sapiens CourseSuite.\n\n"
+        response += "I can assist with:\n"
+        response += "• Policy data conversion and mapping\n"
+        response += "• Class code validation and NCCI compliance\n"
+        response += "• Premium calculation and rating\n"
+        response += "• State-specific requirements\n"
+        response += "• Experience Modification factors\n"
+        response += "• Sapiens CourseSuite integration\n\n"
+        response += "What specific aspect would you like help with?"
+        sources = []
+    
+    return {"content": response, "sources": sources}
+
+# Routes
+@app.post("/api/auth/login")
+async def login(data: LoginRequest, db: aiosqlite.Connection = Depends(get_db)):
+    password_hash = hashlib.sha256(data.password.encode()).hexdigest()
+    
+    async with db.execute(
+        "SELECT * FROM users WHERE email = ? AND password_hash = ?",
+        (data.email, password_hash)
+    ) as cursor:
+        user = await cursor.fetchone()
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    token = create_token(user["id"], user["email"], user["role"])
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "username": user["username"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "role": user["role"],
+            "team": user["team"],
+        }
+    }
+
+@app.get("/api/auth/me")
+async def get_me(token: dict = Depends(verify_token), db: aiosqlite.Connection = Depends(get_db)):
+    async with db.execute("SELECT * FROM users WHERE id = ?", (token["user_id"],)) as cursor:
+        user = await cursor.fetchone()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "username": user["username"],
+        "first_name": user["first_name"],
+        "last_name": user["last_name"],
+        "role": user["role"],
+        "team": user["team"],
+    }
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "version": "1.0.0-demo"}
+
+@app.get("/api/chat/conversations")
+async def list_conversations(
+    token: dict = Depends(verify_token),
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    async with db.execute(
+        "SELECT * FROM conversations WHERE user_id = ? AND is_active = 1 ORDER BY updated_at DESC",
+        (token["user_id"],)
+    ) as cursor:
+        rows = await cursor.fetchall()
+    
+    return [{"id": r["id"], "title": r["title"], "message_count": r["message_count"], 
+             "created_at": r["created_at"], "updated_at": r["updated_at"]} for r in rows]
+
+@app.post("/api/chat/conversations")
+async def create_conversation(
+    token: dict = Depends(verify_token),
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    conv_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    
+    await db.execute(
+        """INSERT INTO conversations (id, user_id, title, user_role, is_active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (conv_id, token["user_id"], "New Conversation", token["role"], 1, now, now)
+    )
+    await db.commit()
+    
+    # Update memory
+    await db.execute(
+        """INSERT OR REPLACE INTO user_memories 
+           (id, user_id, total_conversations, last_interaction, created_at, updated_at)
+           VALUES (
+               COALESCE((SELECT id FROM user_memories WHERE user_id = ?), ?),
+               ?,
+               COALESCE((SELECT total_conversations FROM user_memories WHERE user_id = ?), 0) + 1,
+               ?,
+               COALESCE((SELECT created_at FROM user_memories WHERE user_id = ?), ?),
+               ?
+           )""",
+        (token["user_id"], str(uuid.uuid4()), token["user_id"], 
+         token["user_id"], now, token["user_id"], now, now)
+    )
+    await db.commit()
+    
+    return {"id": conv_id, "title": "New Conversation", "created_at": now}
+
+@app.post("/api/chat/messages")
+async def send_message(
+    data: MessageCreate,
+    token: dict = Depends(verify_token),
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    now = datetime.utcnow().isoformat()
+    
+    # Get or create conversation
+    if data.conversation_id:
+        conv_id = data.conversation_id
+    else:
+        conv_id = str(uuid.uuid4())
+        await db.execute(
+            """INSERT INTO conversations (id, user_id, title, user_role, is_active, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (conv_id, token["user_id"], data.content[:50] + "...", token["role"], 1, now, now)
+        )
+    
+    # Save user message
+    msg_id = str(uuid.uuid4())
+    await db.execute(
+        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+        (msg_id, conv_id, "user", data.content, now)
+    )
+    
+    # Get user memory
+    async with db.execute(
+        "SELECT * FROM user_memories WHERE user_id = ?", (token["user_id"],)
+    ) as cursor:
+        memory = await cursor.fetchone()
+    
+    memory_dict = None
+    if memory:
+        memory_dict = {
+            "employee_facts": memory["employee_facts"],
+            "team_info": memory["team_info"],
+            "active_projects": memory["active_projects"],
+        }
+    
+    # Generate AI response
+    ai_response = generate_ai_response(data.content, token["role"], memory_dict)
+    
+    # Save AI message
+    ai_msg_id = str(uuid.uuid4())
+    await db.execute(
+        "INSERT INTO messages (id, conversation_id, role, content, sources, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (ai_msg_id, conv_id, "assistant", ai_response["content"], 
+         json.dumps(ai_response["sources"]), now)
+    )
+    
+    # Update conversation
+    await db.execute(
+        "UPDATE conversations SET message_count = message_count + 2, updated_at = ? WHERE id = ?",
+        (now, conv_id)
+    )
+    
+    # Update memory
+    await db.execute(
+        """INSERT OR REPLACE INTO user_memories 
+           (id, user_id, total_messages, last_interaction, updated_at)
+           VALUES (
+               COALESCE((SELECT id FROM user_memories WHERE user_id = ?), ?),
+               ?,
+               COALESCE((SELECT total_messages FROM user_memories WHERE user_id = ?), 0) + 1,
+               ?,
+               ?
+           )""",
+        (token["user_id"], str(uuid.uuid4()), token["user_id"], 
+         token["user_id"], now, now)
+    )
+    await db.commit()
+    
+    return {
+        "id": ai_msg_id,
+        "role": "assistant",
+        "content": ai_response["content"],
+        "sources": ai_response["sources"],
+        "created_at": now
+    }
+
+@app.get("/api/chat/memory")
+async def get_memory(token: dict = Depends(verify_token), db: aiosqlite.Connection = Depends(get_db)):
+    async with db.execute(
+        "SELECT * FROM user_memories WHERE user_id = ?", (token["user_id"],)
+    ) as cursor:
+        memory = await cursor.fetchone()
+    
+    if not memory:
+        return {"message": "No memory found"}
+    
+    return {
+        "employee_facts": json.loads(memory["employee_facts"]) if memory["employee_facts"] else {},
+        "team_info": json.loads(memory["team_info"]) if memory["team_info"] else {},
+        "active_projects": json.loads(memory["active_projects"]) if memory["active_projects"] else [],
+        "conversation_summaries": json.loads(memory["conversation_summaries"]) if memory["conversation_summaries"] else [],
+        "domain_expertise": json.loads(memory["domain_expertise"]) if memory["domain_expertise"] else {},
+        "frequent_topics": json.loads(memory["frequent_topics"]) if memory["frequent_topics"] else [],
+        "total_conversations": memory["total_conversations"],
+        "total_messages": memory["total_messages"],
+        "last_interaction": memory["last_interaction"],
+    }
+
+@app.post("/api/chat/memory/employee")
+async def update_employee_facts(
+    data: dict,
+    token: dict = Depends(verify_token),
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    now = datetime.utcnow().isoformat()
+    
+    # Get existing memory
+    async with db.execute(
+        "SELECT employee_facts FROM user_memories WHERE user_id = ?", (token["user_id"],)
+    ) as cursor:
+        row = await cursor.fetchone()
+    
+    existing = {}
+    if row and row["employee_facts"]:
+        existing = json.loads(row["employee_facts"])
+    
+    existing.update(data)
+    
+    await db.execute(
+        """INSERT OR REPLACE INTO user_memories 
+           (id, user_id, employee_facts, updated_at)
+           VALUES (
+               COALESCE((SELECT id FROM user_memories WHERE user_id = ?), ?),
+               ?, ?, ?
+           )""",
+        (token["user_id"], str(uuid.uuid4()), token["user_id"], 
+         json.dumps(existing), now)
+    )
+    await db.commit()
+    
+    return {"message": "Employee facts updated", "facts": existing}
+
+@app.post("/api/chat/memory/project")
+async def add_project(
+    data: dict,
+    token: dict = Depends(verify_token),
+    db: aiosqlite.Connection = Depends(get_db)
+):
+    now = datetime.utcnow().isoformat()
+    
+    # Get existing projects
+    async with db.execute(
+        "SELECT active_projects FROM user_memories WHERE user_id = ?", (token["user_id"],)
+    ) as cursor:
+        row = await cursor.fetchone()
+    
+    projects = []
+    if row and row["active_projects"]:
+        projects = json.loads(row["active_projects"])
+    
+    # Check if project exists
+    existing = next((p for p in projects if p.get("name") == data.get("name")), None)
+    if existing:
+        existing.update(data)
+    else:
+        projects.append(data)
+    
+    await db.execute(
+        """INSERT OR REPLACE INTO user_memories 
+           (id, user_id, active_projects, updated_at)
+           VALUES (
+               COALESCE((SELECT id FROM user_memories WHERE user_id = ?), ?),
+               ?, ?, ?
+           )""",
+        (token["user_id"], str(uuid.uuid4()), token["user_id"], 
+         json.dumps(projects), now)
+    )
+    await db.commit()
+    
+    return {"message": "Project added", "projects": projects}
+
+# Static files for frontend
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+# Create a simple HTML frontend
+os.makedirs("/app/static", exist_ok=True)
+
+with open("/app/static/index.html", "w") as f:
+    f.write('''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise AI Platform - Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #fff; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; padding: 40px 0; border-bottom: 1px solid #334155; margin-bottom: 30px; }
+        h1 { font-size: 2.5em; background: linear-gradient(135deg, #3b82f6, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: #94a3b8; margin-top: 10px; }
+        .login-box, .chat-container { max-width: 500px; margin: 0 auto; background: #1e293b; padding: 30px; border-radius: 12px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; }
+        button { width: 100%; padding: 12px; background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; }
+        button:hover { opacity: 0.9; }
+        .chat-messages { height: 400px; overflow-y: auto; border: 1px solid #334155; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #0f172a; }
+        .message { margin-bottom: 15px; padding: 12px; border-radius: 8px; }
+        .user { background: #1e40af; margin-left: 20%; }
+        .assistant { background: #334155; margin-right: 20%; }
+        .role-badge { display: inline-block; padding: 4px 12px; background: #3b82f6; border-radius: 20px; font-size: 12px; margin-bottom: 20px; }
+        .hidden { display: none; }
+        .info { background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .info h3 { color: #3b82f6; margin-bottom: 10px; }
+        .info ul { margin-left: 20px; color: #94a3b8; }
+        .memory-panel { background: #1e293b; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .memory-panel h3 { color: #10b981; margin-bottom: 10px; }
+        .memory-content { font-family: monospace; font-size: 12px; color: #94a3b8; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Enterprise AI Platform</h1>
+            <p class="subtitle">Workers' Compensation Insurance Domain Expert</p>
+        </header>
+        
+        <div id="login-section" class="login-box">
+            <h2 style="margin-bottom: 20px;">Login</h2>
+            <input type="email" id="email" placeholder="Email" value="admin@enterprise.ai">
+            <input type="password" id="password" placeholder="Password" value="Admin123!">
+            <button onclick="login()">Login</button>
+            <p style="text-align: center; margin-top: 15px; color: #64748b;">Demo: admin@enterprise.ai / Admin123!</p>
+        </div>
+        
+        <div id="chat-section" class="chat-container hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span class="role-badge" id="user-role">Developer</span>
+                <button onclick="logout()" style="width: auto; padding: 8px 16px;">Logout</button>
+            </div>
+            
+            <div class="info">
+                <h3>Try These WC Questions:</h3>
+                <ul>
+                    <li>"How do I map policy numbers from legacy to Sapiens?"</li>
+                    <li>"What are the common WC class codes?"</li>
+                    <li>"How do I validate experience mod factors?"</li>
+                    <li>"Tell me about state requirements for CA"</li>
+                    <li>"How is premium calculated?"</li>
+                </ul>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages"></div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="message-input" placeholder="Ask about WC insurance, Sapiens CourseSuite..." style="flex: 1;" onkeypress="if(event.key==='Enter')sendMessage()">
+                <button onclick="sendMessage()" style="width: auto; padding: 12px 24px;">Send</button>
+            </div>
+            
+            <div class="memory-panel">
+                <h3>🧠 My Memory (Persistent)</h3>
+                <div class="memory-content" id="memory-content">Loading...</div>
+                <button onclick="loadMemory()" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 12px;">Refresh Memory</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let token = localStorage.getItem('token');
+        let user = null;
+        
+        if (token) {
+            showChat();
+            loadUser();
+        }
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await res.json();
+                if (res.ok) {
+                    token = data.access_token;
+                    user = data.user;
+                    localStorage.setItem('token', token);
+                    showChat();
+                    addMessage('assistant', `Welcome ${user.first_name}! I remember you as a ${user.role.replace('_', ' ')}. How can I help you with Workers' Compensation insurance today?`);
+                    loadMemory();
+                } else {
+                    alert('Login failed: ' + data.detail);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            token = null;
+            user = null;
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('chat-section').classList.add('hidden');
+            document.getElementById('chat-messages').innerHTML = '';
+        }
+        
+        function showChat() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('chat-section').classList.remove('hidden');
+        }
+        
+        async function loadUser() {
+            try {
+                const res = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (res.ok) {
+                    user = await res.json();
+                    document.getElementById('user-role').textContent = user.role.replace('_', ' ').toUpperCase();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const content = input.value.trim();
+            if (!content) return;
+            
+            addMessage('user', content);
+            input.value = '';
+            
+            try {
+                const res = await fetch('/api/chat/messages', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ content })
+                });
+                
+                const data = await res.json();
+                if (res.ok) {
+                    addMessage('assistant', data.content);
+                    loadMemory(); // Refresh memory display
+                } else {
+                    addMessage('assistant', 'Error: ' + data.detail);
+                }
+            } catch (e) {
+                addMessage('assistant', 'Error: ' + e.message);
+            }
+        }
+        
+        function addMessage(role, content) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'message ' + role;
+            div.innerHTML = content.replace(/\\n/g, '<br>');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function loadMemory() {
+            try {
+                const res = await fetch('/api/chat/memory', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('memory-content').textContent = JSON.stringify(data, null, 2);
+                } else {
+                    document.getElementById('memory-content').textContent = 'No memory yet. Start chatting!';
+                }
+            } catch (e) {
+                document.getElementById('memory-content').textContent = 'Error loading memory';
+            }
+        }
+    </script>
+</body>
+</html>''')
+
+app.mount("/", StaticFiles(directory="/app/static", html=True), name="static")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+EOF
+
+# Create data directory
+RUN mkdir -p /data
+
+EXPOSE 8080
+
+CMD ["python", "/app/main_demo.py"]
