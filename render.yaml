@@ -1,4 +1,4 @@
-serveces: 
+services: 
 - type: web
   name: enterprise-ai-platform
   env: node
