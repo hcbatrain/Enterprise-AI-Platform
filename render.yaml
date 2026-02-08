@@ -1,0 +1,6 @@
+serveces: 
+- type: web
+  name: enterprise-ai-platform
+  env: node
+  buildCommand: npn install
+  startCommand: npn start
